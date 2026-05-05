@@ -113,6 +113,11 @@ body{font-family:'Inter Tight',sans-serif;background:var(--g50);color:var(--g900
 .dp-n{font-weight:700;color:#60A5FA;min-width:20px;font-family:'JetBrains Mono',monospace;flex-shrink:0}
 .dp-main{color:var(--white);font-weight:500}.dp-win{font-size:10px;color:rgba(255,255,255,.38)}
 .dp-ctrl{font-size:10px;color:#FCD34D;font-style:italic}
+.dp-shifted{font-size:10px;color:#FBBF24;font-weight:500;background:rgba(251,191,36,.12);border-radius:2px;padding:1px 5px}
+.dp-copy-btn{font-size:9px;font-weight:500;padding:2px 6px;border-radius:2px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);color:rgba(255,255,255,.6);cursor:pointer;margin-left:auto;transition:.15s;font-family:'Inter Tight',sans-serif}
+.dp-copy-btn:hover{background:var(--blue);border-color:var(--blue);color:var(--white)}
+.dp-copy-all-btn{display:block;width:100%;margin-top:8px;font-size:10px;font-weight:500;padding:5px 10px;border-radius:2px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);color:rgba(255,255,255,.6);cursor:pointer;text-align:center;transition:.15s;font-family:'Inter Tight',sans-serif}
+.dp-copy-all-btn:hover{background:var(--blue);border-color:var(--blue);color:var(--white)}
 .dp-empty{font-size:11px;color:rgba(255,255,255,.28);font-style:italic}
 .metrics{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:7px}
 .metric-box{background:var(--g50);border:1px solid var(--g100);border-radius:0;padding:7px 11px}
@@ -777,7 +782,8 @@ function calcDates(eye){
 
   function skipUnavail(d){
     const unavs=S.unavailabilities||[];
-    if(!unavs.length)return d;
+    const orig=new Date(d);
+    if(!unavs.length){const r=new Date(d);r._shifted=false;return r;}
     let cur=new Date(d);
     for(let attempt=0;attempt<90;attempt++){
       const blocked=unavs.some(u=>{
@@ -792,10 +798,10 @@ function calcDates(eye){
         }
         return false;
       });
-      if(!blocked)return cur;
+      if(!blocked){cur._shifted=(attempt>0);cur._origDate=orig;return cur;}
       cur=addDays(cur,1);
     }
-    return d;
+    const r=new Date(d);r._shifted=false;return r;
   }
   function adj(d,useLast){
     const p=(useLast&&s.dowPrefLast&&s.dowPrefLast.length)?s.dowPrefLast:prefs;
@@ -812,11 +818,11 @@ function calcDates(eye){
     for(let i=0;i<n;i++){
       const raw=i===0?new Date(today):addWeeks(prev,w1);
       const d=adj(raw,false);
-      dates.push({n:i+1,date:d,type:'charge',note:qLbl(diffD(d,i===0?today:prev)),win:winStr(d)});
+      dates.push({n:i+1,date:d,type:'charge',note:qLbl(diffD(d,i===0?today:prev)),win:winStr(d),shifted:!!d._shifted,origDate:d._origDate});
       prev=d;
     }
     const lastD=adj(addWeeks(prev,w2),true);
-    dates.push({n:n+1,date:lastD,type:'charge',note:qLbl(diffD(lastD,prev)),win:winStr(lastD),ctrl:true});
+    dates.push({n:n+1,date:lastD,type:'charge',note:qLbl(diffD(lastD,prev)),win:winStr(lastD),ctrl:true,shifted:!!lastD._shifted,origDate:lastD._origDate});
 
   }else if(proto==='te'){
     const last=parseDate(s.lastInjDate);
@@ -831,7 +837,7 @@ function calcDates(eye){
       const isLast=i===nSeries-1;
       const d=adj(addDays(prev,newInterval),isLast);
       const ctrl=isLast||(s.ctrlMode==='all');
-      dates.push({n:i+1,date:d,type:'te',note:qLbl(diffD(d,prev)),win:winStr(d),ctrl});
+      dates.push({n:i+1,date:d,type:'te',note:qLbl(diffD(d,prev)),win:winStr(d),ctrl,shifted:!!d._shifted,origDate:d._origDate});
       prev=d;
     }
 
@@ -849,15 +855,15 @@ function calcDates(eye){
       const interval=isLast?baseInterval+14:baseInterval;
       const d=adj(addDays(prev,interval),isLast);
       const ctrl=isLast||(s.ctrlMode==='all');
-      dates.push({n:i+1,date:d,type:'tripla',note:qLbl(diffD(d,prev)),win:winStr(d),ctrl});
+      dates.push({n:i+1,date:d,type:'tripla',note:qLbl(diffD(d,prev)),win:winStr(d),ctrl,shifted:!!d._shifted,origDate:d._origDate});
       prev=d;
     }
 
   }else if(proto==='prn'){
     const d1=adj(new Date(today),false);
-    dates.push({n:1,date:d1,type:'prn',note:qLbl(diffD(d1,today)),win:winStr(d1)});
+    dates.push({n:1,date:d1,type:'prn',note:qLbl(diffD(d1,today)),win:winStr(d1),shifted:!!d1._shifted,origDate:d1._origDate});
     const ctrlD=adj(addWeeks(today,4),false);
-    dates.push({n:'',date:ctrlD,type:'ctrl',note:qLbl(diffD(ctrlD,today)),win:winStr(ctrlD)});
+    dates.push({n:'',date:ctrlD,type:'ctrl',note:qLbl(diffD(ctrlD,today)),win:winStr(ctrlD),shifted:!!ctrlD._shifted,origDate:ctrlD._origDate});
 
   }else if(proto==='fixe'){
     const last=parseDate(s.lastInjDate);
@@ -869,7 +875,7 @@ function calcDates(eye){
       const isLast=i===nSeries-1;
       const d=adj(addDays(prev,fixedInterval),isLast);
       const ctrl=isLast||(s.ctrlMode==='all');
-      dates.push({n:i+1,date:d,type:'fixe',note:qLbl(diffD(d,prev)),win:winStr(d),ctrl});
+      dates.push({n:i+1,date:d,type:'fixe',note:qLbl(diffD(d,prev)),win:winStr(d),ctrl,shifted:!!d._shifted,origDate:d._origDate});
       prev=d;
     }
   }
@@ -1342,19 +1348,29 @@ function renderDates(eye){
   }
   const TYPE_COLOR={charge:'#60A5FA',te:'#A78BFA',tripla:'#34D399',prn:'#FCD34D',fixe:'#60A5FA',ctrl:'#FCD34D'};
   const now=new Date();now.setHours(0,0,0,0);
+  const mol=S[eye].mol||'';
   let html='';
-  dates.forEach(d=>{
+  dates.forEach((d,idx)=>{
     const past=d.date<now;
     const color=TYPE_COLOR[d.type]||'#60A5FA';
+    const dateISO=d.date.toISOString().split('T')[0];
+    const copyLabel=mol?`${mol} — `:'';
     html+=`<div class="dp-item" style="${past?'opacity:.45':''}">
       <span class="dp-n" style="color:${color}">${d.n||'↳'}</span>
       <span class="dp-main">${fmtDateLong(d.date)}</span>
       ${d.note?`<span class="dp-win">${d.note}</span>`:''}
       ${d.win?`<span class="dp-win" style="font-size:9px;opacity:.65">${d.win}</span>`:''}
+      ${d.shifted?`<span class="dp-shifted">⚠ Déplacée (orig. ${fmtDateShort(d.origDate)})</span>`:''}
       ${d.ctrl?'<span class="dp-ctrl">+ Contrôle avant injection</span>':''}
       ${d.type==='ctrl'?'<span class="dp-ctrl">↳ contrôle</span>':''}
+      ${d.type!=='ctrl'?`<button class="dp-copy-btn" onclick="copyDateToAss('${eye}','${dateISO}','${d.type==='charge'||d.type==='te'||d.type==='tripla'||d.type==='prn'||d.type==='fixe'?'IVT':'IVT'}')">→ Assistante</button>`:''}
     </div>`;
   });
+  // Bouton tout copier
+  const ivtDates=dates.filter(d=>d.type!=='ctrl');
+  if(ivtDates.length>1){
+    html+=`<button class="dp-copy-all-btn" onclick="copyAllDatesToAss('${eye}')">→ Tout copier vers Assistante</button>`;
+  }
   container.innerHTML=html;
 }
 
@@ -1467,7 +1483,10 @@ function eyeSynthText(eye){
     lines.push('');
     lines.push('Planning IVT :');
     dates.slice(0,8).forEach(d=>{
-      let line='  '+(d.n||'↳')+'. '+fmtDate(d.date)+(d.note?' ['+d.note+']':'');
+      let line='  '+(d.n||'↳')+'. '+fmtDate(d.date);
+      if(d.note)line+=' ['+d.note+']';
+      if(d.win)line+=' '+d.win;
+      if(d.shifted&&d.origDate)line+=' ⚠ déplacée (orig. '+fmtDate(d.origDate)+')';
       if(d.ctrl)line+=' ← Contrôle avant injection';
       if(d.type==='ctrl')line+=' ← Contrôle';
       lines.push(line);
@@ -1631,6 +1650,35 @@ function copyDateLine(id){
 function updateDateLine(id,field,val){
   const l=S.ass.dateLines.find(x=>x.id===id);
   if(l){l[field]=val;updatePDF();}
+}
+
+function copyDateToAss(eye,dateISO,type){
+  const id=++S._dlId;
+  const ivtType=type==='ctrl'?'Contrôle':'IVT';
+  S.ass.dateLines.push({id,date:dateISO,time:'',eye,type:ivtType});
+  renderDateLines();
+  updatePDF();
+  showTab('ass');
+  showToast('Date copiée vers Assistante');
+}
+
+function copyAllDatesToAss(eye){
+  const dates=calcDates(eye);
+  const mol=S[eye].mol||'';
+  let added=0;
+  dates.forEach(d=>{
+    if(d.type==='ctrl')return;
+    const id=++S._dlId;
+    const dateISO=d.date.toISOString().split('T')[0];
+    S.ass.dateLines.push({id,date:dateISO,time:'',eye,type:'IVT'});
+    added++;
+  });
+  if(added){
+    renderDateLines();
+    updatePDF();
+    showTab('ass');
+    showToast(added+' date'+(added>1?'s':'')+' copiée'+(added>1?'s':'')+' vers Assistante'+(mol?' — '+mol:''));
+  }
 }
 
 // ============================================================
